@@ -13,8 +13,6 @@ import os
 from tqdm import tqdm
 from random import shuffle
 import matplotlib.pyplot as plt
-from glob import glob
-from sklearn.metrics.pairwise import cosine_similarity
 
 import networkx as nx
 import face_recognition
@@ -25,10 +23,11 @@ sns.set()
 
 
 def _face_distance(face_encodings, face_encoding_compare):
+    """计算人脸编码嵌入向量之间的欧式距离"""
     if len(face_encodings) == 0:
         return np.empty(0)
 
-    return np.linalg.norm(face_encodings - face_encoding_compare, axis=1)
+    return 1. / np.linalg.norm(face_encodings - face_encoding_compare, axis=1)
 
 
 def _chinese_whispers(encoding_list, *kwargs):
@@ -59,8 +58,8 @@ def _chinese_whispers(encoding_list, *kwargs):
 
         encoding_edges = []
         for i, distance in enumerate(distances):
-            # 如果人脸之间的欧式距离小于阈值，那么两个人脸对应的节点添加边
-            if distance <= kwargs[0]:
+            # 如果人脸之间的欧式距离大于阈值，两个人脸对应的节点添加边
+            if distance > kwargs[0]:
                 # 按相应的连接节点编码边
                 edge_id = idx + i + 2
                 encoding_edges.append((node_id, edge_id, {'weight': distance}))
@@ -89,6 +88,7 @@ def _chinese_whispers(encoding_list, *kwargs):
 
             for ne in neighbors:
                 if isinstance(ne, int):
+                    # 判断该邻居的类别是否在其他邻居中存在，若存在则将相同类别的权重相加
                     if G.node[ne]['cluster'] in clusters:
                         clusters[G.node[ne]['cluster']
                                  ] += G[node][ne]['weight']
@@ -97,7 +97,8 @@ def _chinese_whispers(encoding_list, *kwargs):
 
             edge_weight_sum = 0
             max_cluster = 0
-
+            
+            # TODO: 这块代码有点懵逼!!!
             for cluster in clusters:
                 if clusters[cluster] > edge_weight_sum:
                     edge_weight_sum = clusters[cluster]
@@ -105,6 +106,9 @@ def _chinese_whispers(encoding_list, *kwargs):
 
             # set the class of target node to the winning local class
             G.node[node]['cluster'] = max_cluster
+            
+    # nx.draw(G, with_labels=True, font_weight='bold')
+    # plt.show()
 
     clusters = {}
     for (_, data) in G.node.items():
@@ -144,7 +148,7 @@ def main(output_dir):
             continue
 
     sorted_clusters = cluster_face_encodings(
-        face_encodings, threshold=0.5, iterations=20)
+        face_encodings, threshold=2.0, iterations=20)
     # print(len(sorted_clusters))
 
     print("\n Start clustering...")
@@ -153,8 +157,6 @@ def main(output_dir):
         
         if not os.path.exists(cluster_dir):
             os.makedirs(cluster_dir)
-        else:
-            os.remove(glob(cluster_dir + r'*'))
             
         for path in cluster:
             # os.path.basename：返回最后的文件名
