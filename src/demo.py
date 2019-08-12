@@ -8,6 +8,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import json
+from sklearn import manifold
+import sys
+import os
+import os.path as osp
 
 from imutils import paths
 from facenet_pytorch import MTCNN, InceptionResnetV1
@@ -20,7 +24,6 @@ if __name__ == '__main__':
 	mtcnn = MTCNN(device=device)
 	resnet = InceptionResnetV1(pretrained='vggface2').eval().to(device)
 	
-	# aligned = []
 	features = []
 	ignore_imgs = []
 	for img_path in tqdm(list(paths.list_images("../dataset/"))):
@@ -31,39 +34,60 @@ if __name__ == '__main__':
 		if x_aligned is not None:
 			# 备注: 后期人脸检测不到的可以直接在文件中删除对应的图片
 			embeddings = resnet(x_aligned.unsqueeze(0)).to(device).detach().numpy()
-			# aligned.append(x_aligned)
-			features.append(embeddings[0])
+			# features.append(embeddings[0])
+			# print(x_aligned.cpu().numpy().transpose((1, 2, 0)))
+			# plt.imshow(x_aligned.cpu().numpy().transpose((1, 2, 0)))
+			# plt.show()
+			# sys.exit(-1)
+			
+			# 给定图像元信息
+			info = [{'imagePath': str(img_path), "encodings": embeddings}]
+			features.extend(info)
 		else:
 			ignore_imgs.append(str(img_path))
-	features = np.array(features)
-	print(ignore_imgs)
 	
-	# print(features)
-	# aligned = torch.stack(aligned).to(device)
-	# features = resnet(aligned).cpu()
-	
-	# dists = [[(e1 - e2).norm().item() for e2 in features] for e1 in features]
-	# df = pd.DataFrame(dists, columns=np.arange(0, len(features)), index=np.arange(0, len(features)))
-	# corrs = df.corr()
+	# # t-SNE是一种集降维与可视化与一体的技术
+	# tsne = manifold.TSNE(n_components=2, init='pca', random_state=2019)
+	# transformed = tsne.fit_transform(features)
 	#
-	# import plotly.figure_factory as ff
-	# import plotly.offline as py
-	# figure = ff.create_annotated_heatmap(z=corrs.values, x=list(corrs.columns), y=list(corrs.index), annotation_text=corrs.round(2).values, showscale=True)
-	# py.plot(figure)
-
+	# plt.scatter(transformed[:, 0], transformed[:, 1], c='r')
+	# plt.show()
+	#
+	features = np.array(features)
+	print("Ignore image: ", ignore_imgs)
+	#
+	# # print(features)
+	# # aligned = torch.stack(aligned).to(device)
+	# # features = resnet(aligned).cpu()
+	#
+	# # dists = [[(e1 - e2).norm().item() for e2 in features] for e1 in features]
+	# # df = pd.DataFrame(dists, columns=np.arange(0, len(features)), index=np.arange(0, len(features)))
+	# # corrs = df.corr()
+	# #
+	# # import plotly.figure_factory as ff
+	# # import plotly.offline as py
+	# # figure = ff.create_annotated_heatmap(z=corrs.values, x=list(corrs.columns), y=list(corrs.index), annotation_text=corrs.round(2).values, showscale=True)
+	# # py.plot(figure)
+	#
+	
 	import sys
 	sys.path.append("../")
 	from baseline import aroc as ac
-	
+
 	# Approximate Rank-order clustering
 	# TODO: 自己的调参经验n_neighbours与每个簇的样本数有关, threshold还在想如何???
-	clusters = ac.aroc(features, 3, 0.9, num_proc=4)
-	print(clusters)
+	encodings = [d["encodings"][0] for d in features]
+	imagePaths = [i['imagePath'] for i in features]
+	clusters = ac.aroc(np.array(encodings), 5, 0.9, num_proc=4)
+	
+	# 字典类型的图像聚类结果
 	clusters_index = {}
 	for i, cluster in enumerate(clusters):
 		clusters_index[i] = [int(x) for x in list(cluster)]
-	# print(clusters_index)
-	
-	# 结果保留在json文件中
-	with open("clusters.json", "w", encoding='utf-8') as f:
-		f.write(json.dumps(clusters_index, indent=4))
+		
+	for key, values in clusters_index.items():
+		for value in values:
+			if not osp.exists(osp.join("../resource", str(key))):
+				os.mkdir(osp.join("../resource", str(key)))
+			im = Image.open(imagePaths[value])
+			im.save(osp.join("../resource", str(key), "{}.png").format(value))

@@ -12,7 +12,7 @@ from imutils import paths
 
 import sys
 sys.path.append("../")
-import baseline
+from baseline import sklearn_cluster
 
 
 if __name__ == "__main__":
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     # Method Choice
     s = time.time()
     # labels = baseline.dbscan(encodings, eps=0.5, min_samples=3)
-    labels = baseline.chinese_whispers(encodings, threshold=0.5)
+    labels = sklearn_cluster.chinese_whispers(encodings, threshold=0.45)
     print("[INFO] time: {}".format((time.time() - s) * 1000))
 
     labelIDs = np.unique(labels)

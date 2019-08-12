@@ -18,3 +18,4 @@ def chinese_whispers(encodings, threshold=0.5):
     """
     encodings = [dlib.vector(enc) for enc in encodings]
     return dlib.chinese_whispers_clustering(encodings, threshold)
+

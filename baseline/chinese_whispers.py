@@ -148,7 +148,7 @@ def main(output_dir):
             continue
 
     sorted_clusters = cluster_face_encodings(
-        face_encodings, threshold=2.0, iterations=20)
+        face_encodings, threshold=2.0, iterations=10)
     # print(len(sorted_clusters))
 
     print("\n Start clustering...")
